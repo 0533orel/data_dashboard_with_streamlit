@@ -3,7 +3,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import plotly.express as px
 
-movies_data = pd.read_csv("movies.csv")
+movies_data = pd.read_csv("data/movies.csv")
 print(movies_data.info())
 print(movies_data.duplicated())
 print(movies_data.count())
@@ -75,3 +75,14 @@ with col2:
     rating_count_year = rating_count_year.reset_index()
     figpx = px.line(rating_count_year, x = 'genre', y = 'score')
     st.plotly_chart(figpx)
+
+    st.write("### Histogram: Movie Score Distribution")
+
+    fig, ax = plt.subplots()
+    ax.hist(movies_data['score'].dropna(), bins=10, edgecolor='black')  # 10 עמודות (bins)
+
+    ax.set_xlabel("Score")
+    ax.set_ylabel("Number of Movies")
+    ax.set_title("Distribution of Movie Scores")
+
+    st.pyplot(fig)
