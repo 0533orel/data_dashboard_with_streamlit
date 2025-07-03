@@ -79,7 +79,7 @@ with col2:
     st.write("### Histogram: Movie Score Distribution")
 
     fig, ax = plt.subplots()
-    ax.hist(movies_data['score'].dropna(), bins=10, edgecolor='black')  # 10 עמודות (bins)
+    ax.hist(movies_data['score'].dropna(), bins=10, edgecolor='black')
 
     ax.set_xlabel("Score")
     ax.set_ylabel("Number of Movies")
@@ -101,3 +101,21 @@ ax2.set_ylabel("Average Budget")
 ax2.set_title("Average Movie Budget Over the Years")
 
 st.pyplot(fig2)
+
+
+
+st.write("### Pie Chart: Genre Share")
+
+genre_counts = movies_data['genre'].value_counts()
+
+fig3, ax3 = plt.subplots()
+ax3.pie(
+    genre_counts,
+    labels=genre_counts.index,
+    autopct='%1.1f%%',
+    startangle=90
+)
+ax3.axis('equal')
+ax3.set_title("Share of Movies by Genre")
+
+st.pyplot(fig3)
