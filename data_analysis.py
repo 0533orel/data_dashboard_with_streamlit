@@ -86,3 +86,18 @@ with col2:
     ax.set_title("Distribution of Movie Scores")
 
     st.pyplot(fig)
+
+
+
+st.write("### Line Chart: Average Budget per Year")
+
+budget_by_year = movies_data.groupby('year')['budget'].mean().reset_index()
+
+fig2, ax2 = plt.subplots()
+ax2.plot(budget_by_year['year'], budget_by_year['budget'], marker='o')
+
+ax2.set_xlabel("Year")
+ax2.set_ylabel("Average Budget")
+ax2.set_title("Average Movie Budget Over the Years")
+
+st.pyplot(fig2)
