@@ -1,121 +1,51 @@
 import streamlit as st
-import pandas as pd
-import matplotlib.pyplot as plt
 import plotly.express as px
+from dashboard_data import load_movies, filter_movies
 
-movies_data = pd.read_csv("data/movies.csv")
-print(movies_data.info())
-print(movies_data.duplicated())
-print(movies_data.count())
-movies_data = movies_data.dropna()
+st.set_page_config(page_title="Movie Insights", layout="wide")
+st.title("Movie Insights")
+st.caption("Explore movie ratings and budgets. Every chart uses the same sidebar filters.")
 
-st.write("""
-Average Movie Budget, Grouped by Genre
-""")
-avg_budget = movies_data.groupby('genre')['budget'].mean().round()
-avg_budget = avg_budget.reset_index()
-genre = avg_budget['genre']
-avg_bud = avg_budget['budget']
+@st.cache_data
+def cached_movies():
+    return load_movies()
 
-fig = plt.figure(figsize = (19, 10))
+try:
+    data = cached_movies()
+except (OSError, ValueError) as error:
+    st.error(f"Unable to load the dataset: {error}")
+    st.stop()
 
-plt.bar(genre, avg_bud, color = 'maroon')
-plt.xlabel('genre')
-plt.ylabel('budget')
-plt.title('Matplotlib Bar Chart Showing the Average \
-Budget of Movies in Each Genre')
+if data.empty:
+    st.info("The dataset contains no usable movies.")
+    st.stop()
 
-st.pyplot(fig)
+genres = st.sidebar.multiselect("Genres", sorted(data["genre"].unique()), default=sorted(data["genre"].unique()))
+minimum, maximum = int(data["year"].min()), int(data["year"].max())
+years = st.sidebar.slider("Year range", minimum, maximum, (minimum, maximum)) if minimum < maximum else (minimum, maximum)
+scores = st.sidebar.slider("Score range", 0.0, 10.0, (0.0, 10.0), 0.1)
+filtered = filter_movies(data, genres, years, scores)
 
-# Creating sidebar widget unique values from our movies dataset
-score_rating = movies_data['score'].unique().tolist()
-genre_list = movies_data['genre'].unique().tolist()
-year_list = movies_data['year'].unique().tolist()
+if filtered.empty:
+    st.info("No movies match these filters. Select a genre or widen the ranges.")
+    st.stop()
 
-with st.sidebar:
-    st.write("Select a range on the slider (it represents movie score) \
-       to view the total number of movies in a genre that falls \
-       within that range ")
+a, b, c = st.columns(3)
+a.metric("Movies", len(filtered))
+b.metric("Average score", f"{filtered['score'].mean():.2f}")
+budget = filtered["budget"].mean()
+c.metric("Average budget", "Not available" if filtered["budget"].notna().sum() == 0 else f"${budget:,.0f}")
+st.caption("Average budgets exclude missing values. Counts and ratings retain those movies.")
 
-# create a slider to hold user scores
-new_score_rating = st.slider(label="Choose a value:",
-                             min_value=1.0,
-                             max_value=10.0,
-                             value=(3.0, 4.0))
-
-# create a multiselect widget to display genre
-new_genre_list = st.multiselect('Choose Genre:',
-                                genre_list, default=['Animation', \
-                                                     'Horror', 'Fantasy', 'Romance'])
-# create a selectbox option that holds all unique years
-year = st.selectbox('Choose a Year',
-                    year_list, 0)
-
-#Configure and filter the slider widget for interactivity
-score_info = (movies_data['score'].between(*new_score_rating))
-
-#Filter the selectbox and multiselect widget for interactivity
-new_genre_year = (movies_data['genre'].isin(new_genre_list)) \
-& (movies_data['year'] == year)
-
-# visualization section
-#group the columns needed for visualizations
-col1, col2 = st.columns([2,3])
-with col1:
-    st.write("""#### Lists of movies filtered by year and Genre """)
-    dataframe_genre_year = movies_data[new_genre_year]\
-    .groupby(['name',  'genre'])['year'].sum()
-    dataframe_genre_year = dataframe_genre_year.reset_index()
-    st.dataframe(dataframe_genre_year, width = 400)
-
-with col2:
-    st.write("""#### User score of movies and their genre """)
-    rating_count_year = movies_data[score_info]\
-    .groupby('genre')['score'].count()
-    rating_count_year = rating_count_year.reset_index()
-    figpx = px.line(rating_count_year, x = 'genre', y = 'score')
-    st.plotly_chart(figpx)
-
-    st.write("### Histogram: Movie Score Distribution")
-
-    fig, ax = plt.subplots()
-    ax.hist(movies_data['score'].dropna(), bins=10, edgecolor='black')
-
-    ax.set_xlabel("Score")
-    ax.set_ylabel("Number of Movies")
-    ax.set_title("Distribution of Movie Scores")
-
-    st.pyplot(fig)
-
-
-
-st.write("### Line Chart: Average Budget per Year")
-
-budget_by_year = movies_data.groupby('year')['budget'].mean().reset_index()
-
-fig2, ax2 = plt.subplots()
-ax2.plot(budget_by_year['year'], budget_by_year['budget'], marker='o')
-
-ax2.set_xlabel("Year")
-ax2.set_ylabel("Average Budget")
-ax2.set_title("Average Movie Budget Over the Years")
-
-st.pyplot(fig2)
-
-
-
-st.write("### Pie Chart: Genre Share")
-
-genre_counts = movies_data['genre'].value_counts()
-
-fig3, ax3 = plt.subplots()
-ax3.pie(
-    genre_counts,
-    labels=genre_counts.index,
-    autopct='%1.1f%%',
-    startangle=90
-)
-ax3.axis('equal')
-ax3.set_title("Share of Movies by Genre")
-
-st.pyplot(fig3)
+left, right = st.columns(2)
+with left:
+    by_genre = filtered.groupby("genre", as_index=False)["budget"].mean().dropna()
+    st.plotly_chart(px.bar(by_genre, x="genre", y="budget", title="Average budget by genre"), use_container_width=True)
+    st.plotly_chart(px.histogram(filtered, x="score", nbins=20, title="Score distribution"), use_container_width=True)
+with right:
+    by_year = filtered.groupby("year", as_index=False)["budget"].mean().dropna()
+    st.plotly_chart(px.line(by_year, x="year", y="budget", title="Average budget by year"), use_container_width=True)
+    counts = filtered.groupby("genre").size().reset_index(name="movies")
+    st.plotly_chart(px.bar(counts, x="genre", y="movies", title="Movies by genre"), use_container_width=True)
+st.dataframe(filtered, hide_index=True, use_container_width=True)
+st.download_button("Download filtered CSV", filtered.to_csv(index=False).encode("utf-8"), "filtered-movies.csv", "text/csv")
